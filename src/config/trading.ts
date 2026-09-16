@@ -70,3 +70,62 @@ function validateTradingConfig(): void {
 validateTradingConfig();
 
 export type TradingConfig = typeof tradingConfig;
+
+export function getTradingConfig(symbol: string): TradingConfig {
+  if (!tradingConfig.symbols.includes(symbol as (typeof tradingConfig.symbols)[number])) {
+    throw new Error(`No trading configuration found for symbol: ${symbol}`);
+  }
+
+  return tradingConfig;
+}
+
+export function getDcaDropPercent(symbol: string, level: number): number {
+  const config = getTradingConfig(symbol);
+  const dca = config.dcaLevels.find((item) => item.level === level);
+
+  if (!dca) {
+    throw new Error(`DCA level ${level} is not configured for ${symbol}`);
+  }
+
+  return dca.dropPercent;
+}
+
+export function calculateDcaTargetPrice(
+  symbol: string,
+  referencePrice: number,
+  level: number,
+): number {
+  if (!Number.isFinite(referencePrice) || referencePrice <= 0) {
+    throw new Error("Reference price must be greater than zero");
+  }
+
+  const dropPercent = getDcaDropPercent(symbol, level);
+
+  return referencePrice * (1 - dropPercent / 100);
+}
+
+export function calculateTakeProfitPrice(
+  symbol: string,
+  averagePrice: number,
+): number {
+  if (!Number.isFinite(averagePrice) || averagePrice <= 0) {
+    throw new Error("Average price must be greater than zero");
+  }
+
+  const config = getTradingConfig(symbol);
+
+  return averagePrice * (1 + config.takeProfitPercent / 100);
+}
+
+export function calculateStopLossPrice(
+  symbol: string,
+  referencePrice: number,
+): number {
+  if (!Number.isFinite(referencePrice) || referencePrice <= 0) {
+    throw new Error("Stop-loss reference price must be greater than zero");
+  }
+
+  const config = getTradingConfig(symbol);
+
+  return referencePrice * (1 - config.stopLossPercent / 100);
+}
