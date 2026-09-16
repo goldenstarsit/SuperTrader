@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:migrate": "next dev >/dev/null 2>&1 & PID=$!; sleep 2; kill $PID 2>/dev/null || true"
+    "db:migrate": "tsx src/database/migrate.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
