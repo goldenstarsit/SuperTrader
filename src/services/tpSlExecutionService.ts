@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { isMexcOrderNotFoundError } from "../exchange/mexcOrderRecovery";
 import { mexcAccountService } from "../exchange/mexcAccountService";
 import { mexcClient } from "../exchange/mexcClient";
 import { mexcSymbolRulesService } from "../exchange/mexcSymbolRules";
@@ -63,24 +63,28 @@ export class TpSlExecutionService {
     }
 
     const clientOrderId =
-      `st-${cycleId}-${trigger.toLowerCase()}-${randomUUID()}`;
+      `st-close-${cycleId}`;
 
-    const orderId = orderRepository.create({
+    const result = orderRepository.createCloseIfAbsent({
       cycleId,
       symbol: cycle.symbol,
       clientOrderId,
       orderType: trigger,
-      side: "SELL",
-      executionType: "MARKET",
       requestedQuantity: quantityResult.quantity,
     });
 
+    if (!result.created) {
+      throw new Error(
+        `Close order already exists for cycle ${cycleId}: ${result.order.order_type}.`,
+      );
+    }
+
     return {
-      orderId,
+      orderId: result.order.id,
       cycleId,
       symbol: cycle.symbol,
       trigger,
-      quantity: quantityResult.quantity,
+      quantity: result.order.requested_quantity ?? quantityResult.quantity,
       availableBalance: availableBalance.free,
     };
   }
@@ -112,6 +116,28 @@ export class TpSlExecutionService {
         orderId: order.id,
         exchangeOrderId: order.exchange_order_id,
       };
+    }
+
+    try {
+      const existingExchangeOrder = await mexcClient.getOrder(
+        order.symbol,
+        undefined,
+        order.client_order_id,
+      );
+
+      orderRepository.setExchangeOrderId(
+        order.id,
+        existingExchangeOrder.orderId,
+      );
+
+      return {
+        orderId: order.id,
+        exchangeOrderId: existingExchangeOrder.orderId,
+      };
+    } catch (error) {
+      if (!isMexcOrderNotFoundError(error)) {
+        throw error;
+      }
     }
 
     const response = await mexcClient.placeMarketSell(

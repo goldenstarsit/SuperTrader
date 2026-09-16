@@ -2,6 +2,7 @@ import type Database from "better-sqlite3";
 import db from "../lib/database";
 import { migration as migration1 } from "./migrations/001_initial_schema";
 import * as migration2Module from "./migrations/002_initial_market_buy_quote";
+import * as migration3Module from "./migrations/003_idempotency_constraints";
 
 type Migration = {
   version: number;
@@ -13,6 +14,10 @@ const migrations: Migration[] = [
   {
     version: migration2Module.version,
     up: migration2Module.up,
+  },
+  {
+    version: migration3Module.version,
+    up: migration3Module.up,
   },
 ].sort((a, b) => a.version - b.version);
 

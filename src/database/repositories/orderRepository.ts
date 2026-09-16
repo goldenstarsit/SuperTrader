@@ -65,6 +65,205 @@ export const orderRepository = {
     return Number(result.lastInsertRowid);
   },
 
+  createInitialIfAbsent(input: {
+    cycleId: number;
+    symbol: string;
+    clientOrderId: string;
+    requestedQuoteQuantity: number;
+  }): { created: boolean; order: TradingOrder } {
+    const run = db.transaction(() => {
+      const existing = db
+        .prepare(`
+          SELECT *
+          FROM orders
+          WHERE cycle_id = ?
+            AND order_type = 'INITIAL'
+            AND side = 'BUY'
+          LIMIT 1
+        `)
+        .get(input.cycleId) as TradingOrder | undefined;
+
+      if (existing) {
+        return { created: false, order: existing };
+      }
+
+      const result = db
+        .prepare(`
+          INSERT INTO orders (
+            cycle_id,
+            symbol,
+            client_order_id,
+            order_type,
+            side,
+            execution_type,
+            requested_quantity,
+            requested_quote_quantity,
+            status
+          )
+          VALUES (?, ?, ?, 'INITIAL', 'BUY', 'MARKET', NULL, ?, 'PENDING')
+        `)
+        .run(
+          input.cycleId,
+          input.symbol,
+          input.clientOrderId,
+          input.requestedQuoteQuantity,
+        );
+
+      const order = db
+        .prepare("SELECT * FROM orders WHERE id = ?")
+        .get(Number(result.lastInsertRowid)) as TradingOrder | undefined;
+
+      if (!order) {
+        throw new Error("Initial order could not be loaded after creation.");
+      }
+
+      return { created: true, order };
+    });
+
+    return run.immediate();
+  },
+
+  createDcaIfAbsent(input: {
+    cycleId: number;
+    symbol: string;
+    clientOrderId: string;
+    dcaLevel: number;
+    requestedPrice: number;
+    requestedQuantity: number;
+  }): { created: boolean; order: TradingOrder } {
+    const run = db.transaction(() => {
+      const existing = db
+        .prepare(`
+          SELECT *
+          FROM orders
+          WHERE cycle_id = ?
+            AND order_type = 'DCA'
+            AND side = 'BUY'
+            AND dca_level = ?
+          LIMIT 1
+        `)
+        .get(input.cycleId, input.dcaLevel) as TradingOrder | undefined;
+
+      if (existing) {
+        return { created: false, order: existing };
+      }
+
+      const result = db
+        .prepare(`
+          INSERT INTO orders (
+            cycle_id,
+            symbol,
+            client_order_id,
+            order_type,
+            side,
+            execution_type,
+            dca_level,
+            requested_price,
+            requested_quantity,
+            status
+          )
+          VALUES (?, ?, ?, 'DCA', 'BUY', 'LIMIT_MAKER', ?, ?, ?, 'PENDING')
+        `)
+        .run(
+          input.cycleId,
+          input.symbol,
+          input.clientOrderId,
+          input.dcaLevel,
+          input.requestedPrice,
+          input.requestedQuantity,
+        );
+
+      const order = db
+        .prepare("SELECT * FROM orders WHERE id = ?")
+        .get(Number(result.lastInsertRowid)) as TradingOrder | undefined;
+
+      if (!order) {
+        throw new Error("DCA order could not be loaded after creation.");
+      }
+
+      return { created: true, order };
+    });
+
+    return run.immediate();
+  },
+
+  createCloseIfAbsent(input: {
+    cycleId: number;
+    symbol: string;
+    clientOrderId: string;
+    orderType: "TAKE_PROFIT" | "STOP_LOSS";
+    requestedQuantity: number;
+  }): { created: boolean; order: TradingOrder } {
+    const run = db.transaction(() => {
+      const existing = db
+        .prepare(`
+          SELECT *
+          FROM orders
+          WHERE cycle_id = ?
+            AND side = 'SELL'
+            AND order_type IN ('TAKE_PROFIT', 'STOP_LOSS')
+          ORDER BY id
+          LIMIT 1
+        `)
+        .get(input.cycleId) as TradingOrder | undefined;
+
+      if (existing) {
+        return { created: false, order: existing };
+      }
+
+      const result = db
+        .prepare(`
+          INSERT INTO orders (
+            cycle_id,
+            symbol,
+            client_order_id,
+            order_type,
+            side,
+            execution_type,
+            requested_quantity,
+            status
+          )
+          VALUES (?, ?, ?, ?, 'SELL', 'MARKET', ?, 'PENDING')
+        `)
+        .run(
+          input.cycleId,
+          input.symbol,
+          input.clientOrderId,
+          input.orderType,
+          input.requestedQuantity,
+        );
+
+      const order = db
+        .prepare("SELECT * FROM orders WHERE id = ?")
+        .get(Number(result.lastInsertRowid)) as TradingOrder | undefined;
+
+      if (!order) {
+        throw new Error("Close order could not be loaded after creation.");
+      }
+
+      return { created: true, order };
+    });
+
+    return run.immediate();
+  },
+
+  findCloseOrder(
+    cycleId: number,
+    orderType: "TAKE_PROFIT" | "STOP_LOSS",
+  ): TradingOrder | undefined {
+    return db
+      .prepare(`
+        SELECT *
+        FROM orders
+        WHERE cycle_id = ?
+          AND order_type = ?
+          AND side = 'SELL'
+        ORDER BY id
+        LIMIT 1
+      `)
+      .get(cycleId, orderType) as TradingOrder | undefined;
+  },
+
   findById(id: number): TradingOrder | undefined {
     return db.prepare("SELECT * FROM orders WHERE id = ?").get(id) as
       | TradingOrder

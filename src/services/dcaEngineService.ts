@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { isMexcOrderNotFoundError } from "../exchange/mexcOrderRecovery";
 import type { MexcClient } from "../exchange/mexcClient";
 import type { MexcSymbolRules } from "../exchange/mexcSymbolRules";
 import { dcaLevelRepository } from "../database/repositories/dcaLevelRepository";
@@ -160,17 +160,12 @@ export class DcaEngineService {
     }
 
     const clientOrderId =
-      `st-dca-${cycleId}-${nextPendingLevel.level}-${randomUUID()
-        .replaceAll("-", "")
-        .slice(0, 16)}`;
+      `st-dca-${cycleId}-${nextPendingLevel.level}`;
 
-    const localOrderId = orderRepository.create({
+    const result = orderRepository.createDcaIfAbsent({
       cycleId,
       symbol: cycle.symbol,
       clientOrderId,
-      orderType: "DCA",
-      side: "BUY",
-      executionType: "LIMIT_MAKER",
       dcaLevel: nextPendingLevel.level,
       requestedPrice: nextPendingLevel.target_price,
       requestedQuantity: quantity,
@@ -179,14 +174,14 @@ export class DcaEngineService {
     dcaLevelRepository.updateStatus(
       nextPendingLevel.id,
       "ORDERED",
-      localOrderId,
+      result.order.id,
     );
 
     return [
       {
         level: nextPendingLevel.level,
-        action: "PREPARED",
-        order: orderRepository.findById(localOrderId),
+        action: result.created ? "PREPARED" : "EXISTS",
+        order: result.order,
       },
     ];
   }
@@ -219,6 +214,30 @@ export class DcaEngineService {
       order.requested_price === null
     ) {
       throw new Error(`DCA order ${orderId} is missing price or quantity.`);
+    }
+
+    try {
+      const existingExchangeOrder = await this.mexcClient.getOrder(
+        order.symbol,
+        undefined,
+        order.client_order_id,
+      );
+
+      orderRepository.setExchangeOrderId(
+        order.id,
+        existingExchangeOrder.orderId,
+      );
+
+      return {
+        submitted: false,
+        reason: "DCA_ORDER_RECOVERED_FROM_EXCHANGE",
+        order: orderRepository.findById(order.id),
+        exchangeOrderId: existingExchangeOrder.orderId,
+      };
+    } catch (error) {
+      if (!isMexcOrderNotFoundError(error)) {
+        throw error;
+      }
     }
 
     const response = await this.mexcClient.placeLimitMakerBuy(

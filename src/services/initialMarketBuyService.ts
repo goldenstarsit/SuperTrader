@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { isMexcOrderNotFoundError } from "../exchange/mexcOrderRecovery";
 import type { MexcClient } from "../exchange/mexcClient";
 import { calculateMinimumMarketBuyQuoteAmount } from "../trading/marketBuyQuoteCalculator";
 import { orderRepository } from "../database/repositories/orderRepository";
@@ -35,50 +35,68 @@ export class InitialMarketBuyService {
       maxQuoteAmountMarket: rules.maxQuoteAmountMarket,
     });
 
-    const clientOrderId = `st-${cycleId}-${randomUUID().replaceAll("-", "").slice(0, 20)}`;
+    const clientOrderId = `st-initial-${cycleId}`;
 
-    const orderId = orderRepository.create({
+    const result = orderRepository.createInitialIfAbsent({
       cycleId,
       symbol: cycle.symbol,
       clientOrderId,
-      orderType: "INITIAL",
-      side: "BUY",
-      executionType: "MARKET",
-      requestedQuantity: undefined,
       requestedQuoteQuantity: quoteAmount,
     });
 
-    const order = orderRepository.findById(orderId);
-
-    if (!order) {
-      throw new Error(`Initial order ${orderId} could not be persisted.`);
-    }
-
     return {
-      created: true,
-      order,
-      quoteAmount,
+      created: result.created,
+      order: result.order,
+      ...(result.created ? { quoteAmount } : {}),
     };
   }
 
   async submit(cycleId: number, rules: MexcSymbolRules) {
     const prepared = await this.prepare(cycleId, rules);
 
-    if (!prepared.created) {
+    const quoteAmount =
+      prepared.quoteAmount ?? prepared.order.requested_quote_quantity;
+
+    if (quoteAmount === null || quoteAmount === undefined) {
+      throw new Error("Initial Market BUY quote amount is missing.");
+    }
+
+    if (prepared.order.exchange_order_id) {
       return {
         submitted: false,
-        reason: "INITIAL_ORDER_ALREADY_EXISTS",
+        reason: "INITIAL_ORDER_ALREADY_SUBMITTED",
         order: prepared.order,
+        exchangeOrderId: prepared.order.exchange_order_id,
       };
     }
 
-    if (prepared.quoteAmount === undefined) {
-      throw new Error("Initial Market BUY quote amount is missing.");
+    try {
+      const existingExchangeOrder = await this.mexcClient.getOrder(
+        prepared.order.symbol,
+        undefined,
+        prepared.order.client_order_id,
+      );
+
+      orderRepository.setExchangeOrderId(
+        prepared.order.id,
+        existingExchangeOrder.orderId,
+      );
+
+      return {
+        submitted: false,
+        reason: "INITIAL_ORDER_RECOVERED_FROM_EXCHANGE",
+        order: orderRepository.findById(prepared.order.id),
+        exchangeOrderId: existingExchangeOrder.orderId,
+      };
+    } catch (error) {
+      if (!isMexcOrderNotFoundError(error)) {
+        throw error;
+      }
     }
 
     const response = await this.mexcClient.placeMarketBuy(
       prepared.order.symbol,
-      prepared.quoteAmount,
+      quoteAmount,
       prepared.order.client_order_id,
     );
 
