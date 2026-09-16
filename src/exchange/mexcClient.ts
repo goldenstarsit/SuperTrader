@@ -226,6 +226,38 @@ export class MexcClient {
     });
   }
 
+  async placeLimitMakerBuy(
+    symbol: string,
+    quantity: number,
+    price: number,
+    newClientOrderId: string,
+  ): Promise<MexcPlaceOrderResponse> {
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new Error("quantity must be greater than zero.");
+    }
+
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new Error("price must be greater than zero.");
+    }
+
+    if (!newClientOrderId.trim()) {
+      throw new Error("newClientOrderId is required.");
+    }
+
+    return this.request<MexcPlaceOrderResponse>("/api/v3/order", {
+      method: "POST",
+      signed: true,
+      params: {
+        symbol,
+        side: "BUY",
+        type: "LIMIT_MAKER",
+        quantity,
+        price,
+        newClientOrderId,
+      },
+    });
+  }
+
   async getOrder(
     symbol: string,
     orderId?: string,
