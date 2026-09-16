@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:migrate": "next dev >/dev/null 2>&1 & PID=$!; sleep 2; kill $PID 2>/dev/null || true"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
@@ -23,6 +24,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "node-gyp": "^13.0.2",
+    "tsx": "^4.23.13",
     "typescript": "^5"
   },
   "packageManager": "pnpm@11.26.0"
