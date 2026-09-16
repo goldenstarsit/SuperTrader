@@ -87,6 +87,30 @@ export class PositionService {
     };
   }
 
+  close(cycleId: number): PositionSnapshot {
+    const cycle = tradingCycleRepository.findById(cycleId);
+
+    if (!cycle) {
+      throw new Error(`Trading cycle ${cycleId} not found.`);
+    }
+
+    const existing = positionRepository.findByCycleId(cycleId);
+
+    if (!existing) {
+      throw new Error(`Position for cycle ${cycleId} not found.`);
+    }
+
+    positionRepository.update(cycleId, 0, null, 0);
+
+    return {
+      cycleId,
+      symbol: cycle.symbol,
+      quantity: 0,
+      averagePrice: null,
+      investedAmount: 0,
+    };
+  }
+
   get(cycleId: number): PositionSnapshot {
     const position = positionRepository.findByCycleId(cycleId);
 

@@ -202,6 +202,32 @@ export class MexcClient {
     });
   }
 
+  async placeMarketSell(
+    symbol: string,
+    quantity: number,
+    newClientOrderId: string,
+  ): Promise<MexcPlaceOrderResponse> {
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new Error("quantity must be greater than zero.");
+    }
+
+    if (!newClientOrderId.trim()) {
+      throw new Error("newClientOrderId is required.");
+    }
+
+    return this.request<MexcPlaceOrderResponse>("/api/v3/order", {
+      method: "POST",
+      signed: true,
+      params: {
+        symbol,
+        side: "SELL",
+        type: "MARKET",
+        quantity,
+        newClientOrderId,
+      },
+    });
+  }
+
   async getMyTrades(
     symbol: string,
     orderId?: string,
