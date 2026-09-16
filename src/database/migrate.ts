@@ -1,5 +1,20 @@
+import type Database from "better-sqlite3";
 import db from "../lib/database";
-import { migration } from "./migrations/001_initial_schema";
+import { migration as migration1 } from "./migrations/001_initial_schema";
+import * as migration2Module from "./migrations/002_initial_market_buy_quote";
+
+type Migration = {
+  version: number;
+  up: (db: Database.Database) => void;
+};
+
+const migrations: Migration[] = [
+  migration1,
+  {
+    version: migration2Module.version,
+    up: migration2Module.up,
+  },
+].sort((a, b) => a.version - b.version);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -8,11 +23,16 @@ db.exec(`
   );
 `);
 
-const applied = db
-  .prepare("SELECT version FROM schema_migrations WHERE version = ?")
-  .get(migration.version) as { version: number } | undefined;
+for (const migration of migrations) {
+  const applied = db
+    .prepare("SELECT version FROM schema_migrations WHERE version = ?")
+    .get(migration.version) as { version: number } | undefined;
 
-if (!applied) {
+  if (applied) {
+    console.log(`Migration ${migration.version}: already applied`);
+    continue;
+  }
+
   const runMigration = db.transaction(() => {
     migration.up(db);
     db.prepare(
@@ -22,9 +42,11 @@ if (!applied) {
 
   runMigration();
   console.log(`Migration ${migration.version}: applied`);
-} else {
-  console.log(`Migration ${migration.version}: already applied`);
 }
+
+const appliedVersions = db
+  .prepare("SELECT version FROM schema_migrations ORDER BY version")
+  .all() as Array<{ version: number }>;
 
 const tables = db
   .prepare(`
@@ -36,4 +58,8 @@ const tables = db
   `)
   .all() as Array<{ name: string }>;
 
+console.log(
+  "Applied migrations:",
+  appliedVersions.map((item) => item.version).join(", "),
+);
 console.log("Tables:", tables.map((table) => table.name).join(", "));

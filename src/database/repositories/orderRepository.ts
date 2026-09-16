@@ -21,6 +21,7 @@ export type TradingOrder = {
   dca_level: number | null;
   requested_price: number | null;
   requested_quantity: number | null;
+  requested_quote_quantity: number | null;
   executed_quantity: number;
   average_fill_price: number | null;
   status: OrderStatus;
@@ -39,13 +40,15 @@ export const orderRepository = {
     dcaLevel?: number;
     requestedPrice?: number;
     requestedQuantity?: number;
+    requestedQuoteQuantity?: number;
   }): number {
     const result = db.prepare(`
       INSERT INTO orders (
         cycle_id, symbol, client_order_id, order_type, side,
-        execution_type, dca_level, requested_price, requested_quantity, status
+        execution_type, dca_level, requested_price, requested_quantity,
+        requested_quote_quantity, status
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
     `).run(
       input.cycleId,
       input.symbol,
@@ -56,6 +59,7 @@ export const orderRepository = {
       input.dcaLevel ?? null,
       input.requestedPrice ?? null,
       input.requestedQuantity ?? null,
+      input.requestedQuoteQuantity ?? null,
     );
 
     return Number(result.lastInsertRowid);

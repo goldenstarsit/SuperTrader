@@ -13,6 +13,11 @@ import type {
   MexcBookTicker,
   MexcExchangeInfoResponse,
 } from "./mexcMarketTypes";
+import type {
+  MexcMyTrade,
+  MexcOrderResponse,
+  MexcPlaceOrderResponse,
+} from "./mexcOrderTypes";
 
 const MEXC_REQUEST_TIMEOUT_MS = 10_000;
 const MEXC_MAX_RETRIES = 2;
@@ -168,6 +173,78 @@ export class MexcClient {
   async getBookTicker(symbol: string): Promise<MexcBookTicker> {
     return this.request<MexcBookTicker>("/api/v3/ticker/bookTicker", {
       params: { symbol },
+    });
+  }
+
+  async placeMarketBuy(
+    symbol: string,
+    quoteOrderQty: number,
+    newClientOrderId: string,
+  ): Promise<MexcPlaceOrderResponse> {
+    if (!Number.isFinite(quoteOrderQty) || quoteOrderQty <= 0) {
+      throw new Error("quoteOrderQty must be greater than zero.");
+    }
+
+    if (!newClientOrderId.trim()) {
+      throw new Error("newClientOrderId is required.");
+    }
+
+    return this.request<MexcPlaceOrderResponse>("/api/v3/order", {
+      method: "POST",
+      signed: true,
+      params: {
+        symbol,
+        side: "BUY",
+        type: "MARKET",
+        quoteOrderQty,
+        newClientOrderId,
+      },
+    });
+  }
+
+  async getMyTrades(
+    symbol: string,
+    orderId?: string,
+    limit = 100,
+  ): Promise<MexcMyTrade[]> {
+    if (!symbol.trim()) {
+      throw new Error("symbol is required.");
+    }
+
+    if (!Number.isInteger(limit) || limit <= 0 || limit > 1000) {
+      throw new Error("limit must be an integer between 1 and 1000.");
+    }
+
+    return this.request<MexcMyTrade[]>("/api/v3/myTrades", {
+      method: "GET",
+      signed: true,
+      params: {
+        symbol,
+        orderId,
+        limit,
+      },
+    });
+  }
+
+  async getOrder(
+    symbol: string,
+    orderId?: string,
+    origClientOrderId?: string,
+  ): Promise<MexcOrderResponse> {
+    if (!orderId && !origClientOrderId) {
+      throw new Error(
+        "Either orderId or origClientOrderId is required.",
+      );
+    }
+
+    return this.request<MexcOrderResponse>("/api/v3/order", {
+      method: "GET",
+      signed: true,
+      params: {
+        symbol,
+        orderId,
+        origClientOrderId,
+      },
     });
   }
 }
