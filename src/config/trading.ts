@@ -129,3 +129,71 @@ export function calculateStopLossPrice(
 
   return referencePrice * (1 - config.stopLossPercent / 100);
 }
+
+export type TradingConfigSnapshot = {
+  symbol: string;
+  dcaLevels: ReadonlyArray<{
+    level: number;
+    dropPercent: number;
+  }>;
+  takeProfitPercent: number;
+  stopLossPercent: number;
+};
+
+export function createTradingConfigSnapshot(
+  symbol: string,
+): TradingConfigSnapshot {
+  const config = getTradingConfig(symbol);
+
+  return {
+    symbol,
+    dcaLevels: config.dcaLevels.map((dca) => ({
+      level: dca.level,
+      dropPercent: dca.dropPercent,
+    })),
+    takeProfitPercent: config.takeProfitPercent,
+    stopLossPercent: config.stopLossPercent,
+  };
+}
+
+export function calculateSnapshotDcaTargetPrice(
+  snapshot: TradingConfigSnapshot,
+  referencePrice: number,
+  level: number,
+): number {
+  if (!Number.isFinite(referencePrice) || referencePrice <= 0) {
+    throw new Error("Reference price must be greater than zero");
+  }
+
+  const dca = snapshot.dcaLevels.find((item) => item.level === level);
+
+  if (!dca) {
+    throw new Error(
+      `DCA level ${level} is not configured for ${snapshot.symbol}`,
+    );
+  }
+
+  return referencePrice * (1 - dca.dropPercent / 100);
+}
+
+export function calculateSnapshotTakeProfitPrice(
+  snapshot: TradingConfigSnapshot,
+  averagePrice: number,
+): number {
+  if (!Number.isFinite(averagePrice) || averagePrice <= 0) {
+    throw new Error("Average price must be greater than zero");
+  }
+
+  return averagePrice * (1 + snapshot.takeProfitPercent / 100);
+}
+
+export function calculateSnapshotStopLossPrice(
+  snapshot: TradingConfigSnapshot,
+  referencePrice: number,
+): number {
+  if (!Number.isFinite(referencePrice) || referencePrice <= 0) {
+    throw new Error("Stop-loss reference price must be greater than zero");
+  }
+
+  return referencePrice * (1 - snapshot.stopLossPercent / 100);
+}
