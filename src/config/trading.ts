@@ -1,5 +1,5 @@
 export const tradingConfig = {
-  symbols: ["BTCUSDT"],
+  symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "TRXUSDT"],
 
   dcaLevels: [
     { level: 1, dropPercent: 1 },
