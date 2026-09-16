@@ -71,6 +71,8 @@ validateTradingConfig();
 
 export type TradingConfig = typeof tradingConfig;
 
+export const tradingConfigVersion = "1";
+
 export function getTradingConfig(symbol: string): TradingConfig {
   if (!tradingConfig.symbols.includes(symbol as (typeof tradingConfig.symbols)[number])) {
     throw new Error(`No trading configuration found for symbol: ${symbol}`);
@@ -132,6 +134,7 @@ export function calculateStopLossPrice(
 
 export type TradingConfigSnapshot = {
   symbol: string;
+  configVersion: string;
   dcaLevels: ReadonlyArray<{
     level: number;
     dropPercent: number;
@@ -147,6 +150,7 @@ export function createTradingConfigSnapshot(
 
   return {
     symbol,
+    configVersion: tradingConfigVersion,
     dcaLevels: config.dcaLevels.map((dca) => ({
       level: dca.level,
       dropPercent: dca.dropPercent,
