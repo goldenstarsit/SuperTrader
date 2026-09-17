@@ -3,6 +3,7 @@ import db from "../lib/database";
 import { migration as migration1 } from "./migrations/001_initial_schema";
 import * as migration2Module from "./migrations/002_initial_market_buy_quote";
 import * as migration3Module from "./migrations/003_idempotency_constraints";
+import * as migration4Module from "./migrations/004_reconciliation_records";
 
 type Migration = {
   version: number;
@@ -18,6 +19,10 @@ const migrations: Migration[] = [
   {
     version: migration3Module.version,
     up: migration3Module.up,
+  },
+  {
+    version: migration4Module.version,
+    up: migration4Module.up,
   },
 ].sort((a, b) => a.version - b.version);
 
